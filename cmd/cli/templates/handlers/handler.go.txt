@@ -1,0 +1,17 @@
+package handlers
+
+import (
+	"net/http"
+
+	jet "github.com/CloudyKit/jet/v6"
+)
+
+// {{HANDLER_NAME}} handles request for
+func (h *Handlers) {{HANDLER_NAME}}(w http.ResponseWriter, r *http.Request) {
+	h.App.InfoLog.Println("running handler: {{HANDLER_NAME}}")
+	variables := make(jet.VarMap)
+	variables.Set("error", "")
+	if err := h.render(w, r, "{{HANDLER_VIEW_NAME}}", variables, nil); err != nil {
+		h.App.ErrorLog.Println(err)
+	}
+}

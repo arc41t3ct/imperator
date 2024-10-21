@@ -1,0 +1,91 @@
+package models
+
+import (
+	"time"
+
+	up "github.com/upper/db/v4"
+)
+
+// Note - item.UpdatedAt is handled from the database
+
+type {{MODEL_NAME}} struct {
+	ID        int       `db:"id,omitempty"`
+	CreatedAt time.Time `db:"created_at"`
+	UpdatedAt time.Time `db:"updated_at"`
+}
+
+// Table returns the table name for the {{MODEL_NAME}}
+func (m *{{MODEL_NAME}}) Table() string {
+	return "{{MODEL_TABLE_NAME}}"
+}
+
+// GetAll gets all {{MODEL_NAME}} from the database orderbed by created at
+func (m *{{MODEL_NAME}}) GetAll() ([]*{{MODEL_NAME}}, error) {
+	collection := upper.Collection(m.Table())
+	var all []*{{MODEL_NAME}}
+	res := collection.Find().OrderBy("created_at")
+	if err := res.All(&all); err != nil {
+		return nil, err
+	}
+	return all, nil
+}
+
+// Get gets a {{MODEL_NAME}} from the database by passing the id
+func (m *{{MODEL_NAME}}) Get(id int) (*{{MODEL_NAME}}, error) {
+	var item *{{MODEL_NAME}}
+	collection := upper.Collection(m.Table())
+	res := collection.Find(up.Cond{"id =": id})
+	if err := res.One(&item); err != nil {
+		return nil, err
+	}
+	return item, nil
+}
+
+// Update updates a user based on the user model it is passed
+func (m *{{MODEL_NAME}}) Update(item {{MODEL_NAME}}) error {
+	collection := upper.Collection(m.Table())
+	res := collection.Find(item.ID)
+	if err := res.Update(&item); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Delete deletes a {{MODEL_NAME}} given the id
+func (m *{{MODEL_NAME}}) Delete(id int) error {
+	collection := upper.Collection(m.Table())
+	res := collection.Find(id)
+	if err := res.Delete(); err != nil {
+		return err
+	}
+	return nil
+}
+
+// Insert creates a new {{MODEL_NAME}} given the item
+func (m *{{MODEL_NAME}}) Insert(item {{MODEL_NAME}}) (int, error) {
+	item.CreatedAt = time.Now()
+
+	collection := upper.Collection(m.Table())
+	res, err := collection.Insert(item)
+	if err != nil {
+		return 0, err
+	}
+	id := getInsertID(res.ID())
+	return id, nil
+}
+
+// GetWhereIdGreaterThan get all {{MODEL_NAME}} rows where the id is greater than the id passed
+func (m *{{MODEL_NAME}}) GetWhereIdGreaterThan(id int) ([]*{{MODEL_NAME}}, error) {
+  collection := upper.Collection(m.Table())
+  var results []*{{MODEL_NAME}}
+  err := collection.Session().
+    SQL().
+    SelectFrom(m.Table()).
+    Where("id > ?", id).
+    OrderBy("updated_at").
+    All(&results)
+  if err != nil {
+    return nil, err
+  }
+  return results, nil
+}
