@@ -22,7 +22,7 @@ import (
 	cron "github.com/robfig/cron/v3"
 )
 
-const version = "1.0.0"
+const version = "0.1.0"
 
 // define some globl variables that we need in different places
 var appRedisInstance *cache.RedisCache
@@ -33,12 +33,12 @@ var badgerConn *badger.DB
 // Imperator is the application wide type for the Imperator package. Members that are exported to this type
 // are available to any application that uses it.
 type Imperator struct {
+	RootPath      string
 	AppName       string
-	Debug         bool
 	Version       string
+	Debug         bool
 	ErrorLog      *log.Logger
 	InfoLog       *log.Logger
-	RootPath      string
 	Routes        *chi.Mux
 	Render        *render.Render
 	Session       *scs.SessionManager
@@ -50,7 +50,7 @@ type Imperator struct {
 	Schedular     *cron.Cron
 	Mail          mailer.Mail
 	Server        Server
-	// internal
+	// internal not accessible by implementors
 	config config
 }
 
@@ -73,77 +73,93 @@ type config struct {
 // New reads the .env file, creates our application config, populates the Imperator type with configuration
 // based on .env values, and creates the necessary folders and files if they don't exist yet.
 func (i *Imperator) New(rootPath string) error {
+	// most important root path
+	i.RootPath = rootPath
+	i.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
 	// folders that we will create if they don't exist yet
-	pathConfig := initPaths{
-		rootPath: rootPath,
-		folderNames: []string{
-			"handlers", "migrations", "views", "views/layouts", "mail",
-			"models", "public", "public/images", "public/ico", "logs", "middleware",
-		},
-	}
-	err := i.Init(pathConfig)
-	if err != nil {
+	if err := i.createMissingPaths(); err != nil {
 		return err
 	}
 	// check and load .env
-	err = i.checkDotEnv(rootPath)
-	if err != nil {
+	if err := i.checkDotEnv(); err != nil {
 		return err
 	}
 	// read .env
-	err = godotenv.Load(rootPath + "/.env")
-	if err != nil {
+	if err := godotenv.Load(i.RootPath + "/.env"); err != nil {
 		return err
 	}
 	// create loggers
 	infoLog, errorLog := i.StartLoggers()
-	// connect to databases
-	if os.Getenv("DATABASE_TYPE") != "" {
-		i.DB = Database{}
-		i.DB.DatabaseType = os.Getenv("DATABASE_TYPE")
-		db, err := i.OpenDB(os.Getenv("DATABASE_TYPE"), i.BuildDSN())
-		if err != nil {
-			errorLog.Println(err)
-			os.Exit(1)
-		}
-		i.DB.Pool = db
-	}
-
-	schedular := cron.New()
-	i.Schedular = schedular
-
-	if os.Getenv("CACHE_TYPE") == "redis" || os.Getenv("SESSION_TYPE") == "redis" {
-		appRedisInstance = i.createClientRedisCache()
-		i.Cache = appRedisInstance
-		redisPool = appRedisInstance.Conn
-	}
-
-	if os.Getenv("CACHE_TYPE") == "badger" {
-		appBadgerInstance, err = i.createClientBadgerCache()
-		if err != nil {
-			return err
-		}
-		i.Cache = appBadgerInstance
-		badgerConn = appBadgerInstance.Conn
-
-		_, err = i.Schedular.AddFunc("@daily", func() {
-			_ = appBadgerInstance.Conn.RunValueLogGC(0.7)
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	// bootstrap imperitor
-	i.RootPath = rootPath
-	i.Mail = i.createMailer()
 	i.InfoLog = infoLog
 	i.ErrorLog = errorLog
-	i.Debug, _ = strconv.ParseBool(os.Getenv("DEBUG"))
-	i.Version = version
+	// connect to databases
+	if err := i.createDatabasePool(); err != nil {
+		return err
+	}
+	// create a schedular
+	schedular := cron.New()
+	i.Schedular = schedular
+	// create session and cache
+	if err := i.createCacheAndSessionStore(); err != nil {
+		return err
+	}
+	// bootstrap imperitor
 	i.AppName = os.Getenv("APP_NAME")
+	i.Version = version
+	i.Mail = i.createMailer()
 	i.EncryptionKey = os.Getenv("ENCRYPTION_KEY")
 	i.Routes = i.routes().(*chi.Mux)
+	// create internal config
+	if err := i.createInternalConfig(); err != nil {
+		return err
+	}
+	// create server config
+	if err := i.createInternalConfig(); err != nil {
+		return err
+	}
+	// allows editing templates and reloading ok for development
+	if err := i.createJetTemplatesConfig(); err != nil {
+		return err
+	}
+	// createSession must come before createRenderer
+	i.createSession()
+	i.createRenderer()
+
+	go i.Mail.ListenForMail()
+
+	return nil
+}
+
+func (i *Imperator) createJetTemplatesConfig() error {
+	var views *jet.Set
+	views = jet.NewSet(
+		jet.NewOSFileSystemLoader(fmt.Sprintf("%s/views", i.RootPath)),
+	)
+	if i.Debug {
+		views = jet.NewSet(
+			jet.NewOSFileSystemLoader(fmt.Sprintf("%s/views", i.RootPath)),
+			jet.InDevelopmentMode(),
+		)
+	}
+	i.JetViews = views
+	return nil
+}
+
+func (i *Imperator) createServerConfig() error {
+	secure := true
+	if strings.ToLower(os.Getenv("SECURE")) == "false" {
+		secure = false
+	}
+	i.Server = Server{
+		ServerName: os.Getenv("SERVER_NAME"),
+		Port:       os.Getenv("PORT"),
+		Secure:     secure,
+		URL:        os.Getenv("APP_URL"),
+	}
+	return nil
+}
+
+func (i *Imperator) createInternalConfig() error {
 	i.config = config{
 		port:     os.Getenv("PORT"),
 		renderer: os.Getenv("RENDERER"),
@@ -165,40 +181,17 @@ func (i *Imperator) New(rootPath string) error {
 			prefix:   os.Getenv("REDIS_PREFIX"),
 		},
 	}
-
-	secure := true
-	if strings.ToLower(os.Getenv("SECURE")) == "false" {
-		secure = false
-	}
-	i.Server = Server{
-		ServerName: os.Getenv("SERVER_NAME"),
-		Port:       os.Getenv("PORT"),
-		Secure:     secure,
-		URL:        os.Getenv("APP_URL"),
-	}
-
-	// allows editing templates and reloading ok for development
-	var views *jet.Set
-	views = jet.NewSet(
-		jet.NewOSFileSystemLoader(fmt.Sprintf("%s/views", rootPath)),
-	)
-	if i.Debug {
-		views = jet.NewSet(
-			jet.NewOSFileSystemLoader(fmt.Sprintf("%s/views", rootPath)),
-			jet.InDevelopmentMode(),
-		)
-	}
-	i.JetViews = views
-	// createSession must come before createRenderer
-	i.createSession()
-	i.createRenderer()
-
-	go i.Mail.ListenForMail()
-
 	return nil
 }
 
-func (i *Imperator) Init(p initPaths) error {
+func (i *Imperator) createMissingPaths() error {
+	var p = initPaths{
+		rootPath: i.RootPath,
+		folderNames: []string{
+			"handlers", "migrations", "views", "views/layouts", "mail",
+			"models", "public", "public/images", "public/ico", "middleware",
+		},
+	}
 	root := p.rootPath
 	for _, path := range p.folderNames {
 		// create folder if not exists
@@ -239,8 +232,8 @@ func (i *Imperator) ListenAndServe() {
 	i.ErrorLog.Fatal(err)
 }
 
-func (i *Imperator) checkDotEnv(path string) error {
-	err := i.CreateFileIfNotExists(fmt.Sprintf("%s/.env", path))
+func (i *Imperator) checkDotEnv() error {
+	err := i.CreateFileIfNotExists(fmt.Sprintf("%s/.env", i.RootPath))
 	if err != nil {
 		return err
 	}
@@ -367,4 +360,43 @@ func (i *Imperator) BuildDSN() string {
 	default:
 	}
 	return dsn
+}
+
+func (i *Imperator) createDatabasePool() error {
+	if os.Getenv("DATABASE_TYPE") != "" {
+		i.DB = Database{}
+		i.DB.DatabaseType = os.Getenv("DATABASE_TYPE")
+		db, err := i.OpenDB(os.Getenv("DATABASE_TYPE"), i.BuildDSN())
+		if err != nil {
+			i.ErrorLog.Println(err)
+			os.Exit(1)
+		}
+		i.DB.Pool = db
+	}
+	return nil
+}
+
+func (i *Imperator) createCacheAndSessionStore() error {
+	if os.Getenv("CACHE_TYPE") == "redis" || os.Getenv("SESSION_TYPE") == "redis" {
+		appRedisInstance = i.createClientRedisCache()
+		i.Cache = appRedisInstance
+		redisPool = appRedisInstance.Conn
+	}
+
+	if os.Getenv("CACHE_TYPE") == "badger" {
+		appBadgerInstance, err := i.createClientBadgerCache()
+		if err != nil {
+			return err
+		}
+		i.Cache = appBadgerInstance
+		badgerConn = appBadgerInstance.Conn
+
+		_, err = i.Schedular.AddFunc("@daily", func() {
+			_ = appBadgerInstance.Conn.RunValueLogGC(0.7)
+		})
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }

@@ -30,7 +30,8 @@ func sanitizeAppName(appName string) (string, error) {
 	appName = strings.ToLower(appName)
 	// convert url to single word
 	if strings.Contains(appName, "/") {
-
+		splitted := strings.SplitAfter(appName, "/")
+		appName = splitted[(len(splitted) - 1)]
 	}
-	return "", nil
+	return appName, nil
 }
