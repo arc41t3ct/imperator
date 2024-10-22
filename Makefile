@@ -12,4 +12,5 @@ coverage:
 
 ## build_cli: builds the command line tool imperator and copies it to myapp
 build_cli:
+	@go build -o ../../../bin/imperator ./cmd/cli
 	@go build -o ../imperator_app/imperator ./cmd/cli

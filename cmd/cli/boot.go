@@ -43,10 +43,10 @@ func bootImperator() error {
 func showHelp() {
 	color.Yellow(`Imperator - easily build fullstack web apps
     Available commands:
-        help      - show the help command
-        version   - show the imperator version
-        new       - creates a new imperator project application
-        make      - create scaffolds in your project with these sub commands:
+        help                   - show the help command
+        version                - show the imperator version
+        new <appname> <type>   - creates a new imperator project application
+        make                   - create scaffolds in your project with these sub commands:
             auth               - integrates authentication into the current application
             session            - integrates the session type into the current application
                                  session types: cookie, postgres, mysql, redis
@@ -60,10 +60,10 @@ func showHelp() {
             middleware <name>  - creates new middleware templates
             views <name>       - creates new jet view templates
             viewsgo <name>     - creates new go view templates
-        test      - create new tests for different items with these sub commands
+        test                   - create new tests for different items with these sub commands
             provider           - creates new provider test templates
             model              - creates new model test templates
-        migrate   - migrate your database with these sub commands:
+        migrate                - migrate your database with these sub commands:
             up                 - migrate up all new migrations
             down               - migrate down one migration
             down all           - migrate all migrations down

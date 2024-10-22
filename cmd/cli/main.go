@@ -57,7 +57,11 @@ func run(arg1, arg2, arg3 string) error {
 			showHelp()
 			return errors.New("new requires an application name")
 		}
-		if err := newApp(arg2); err != nil {
+		if arg3 == "" {
+			showHelp()
+			return errors.New("new requires an application type")
+		}
+		if err := newApp(arg2, arg3); err != nil {
 			return errors.New(fmt.Sprintf("could not create new app with error: %s", err))
 		}
 
