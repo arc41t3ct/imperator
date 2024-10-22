@@ -46,6 +46,7 @@ func showHelp() {
         help                   - show the help command
         version                - show the imperator version
         new <appname> <type>   - creates a new imperator project application
+                               - types: blog, portal, landing
         make                   - create scaffolds in your project with these sub commands:
             auth               - integrates authentication into the current application
             session            - integrates the session type into the current application

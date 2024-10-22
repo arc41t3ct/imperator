@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"strings"
 
@@ -16,6 +18,10 @@ func newApp(appName string, appType string) error {
 		return err
 	}
 	imp.InfoLog.Println("App Name:", appName)
+
+	if err := createEnvFile(); err != nil {
+		return err
+	}
 
 	// git clone skelelton
 	var repoName string
@@ -61,9 +67,25 @@ func sanitizeAppName(appName string) (string, error) {
 	return appName, nil
 }
 
+func createEnvFile() error {
+	if err := copyFileFromTemplate(
+		"templates/rootlevel/dot.env.txt",
+		imp.RootPath+"/.env"); err != nil {
+		return err
+	}
+	return nil
+}
+
 func cloneAppRepo(appName, repo string) error {
-	_, err := git.PlainClone("./"+appName, false, &git.CloneOptions{URL: "git@github.com/" + repo, Progress: os.Stdout})
+	_, err := os.Stat(fmt.Sprintf("./%s", appName))
 	if err != nil {
+		return errors.New(fmt.Sprintf("app directory already exists"))
+	}
+	if _, err := git.PlainClone("./"+appName, false, &git.CloneOptions{
+		URL:      "git@github.com/" + repo,
+		Progress: os.Stdout,
+		Depth:    1,
+	}); err != nil {
 		return err
 	}
 	return nil
