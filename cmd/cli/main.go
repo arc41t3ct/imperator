@@ -9,7 +9,7 @@ import (
 	"github.com/fatih/color"
 )
 
-const version = "1.0.0"
+const version = "v0.0.1"
 
 var imp imperator.Imperator
 
