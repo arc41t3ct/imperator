@@ -18,15 +18,15 @@ func main() {
 	if err != nil {
 		exitGracefully(err)
 	}
-	if err := bootImperator(); err != nil {
-		exitGracefully(err)
-	}
 	if err := run(arg1, arg2, arg3); err != nil {
 		exitGracefully(err)
 	}
 	exitGracefully(nil, "ran successfully...")
 }
 
+// run uses the arguments to figure out what to run. Since
+// some operations require running before bootImperator runs
+// we need to decide at a case by case level
 func run(arg1, arg2, arg3 string) error {
 	switch arg1 {
 	case "help":
@@ -39,6 +39,9 @@ func run(arg1, arg2, arg3 string) error {
 		if arg2 == "" {
 			arg2 = "up"
 		}
+		if err := bootImperator(); err != nil {
+			return err
+		}
 		if err := migrate(arg2, arg3); err != nil {
 			return errors.New(fmt.Sprintf("migrate failed with error: %s", err))
 		}
@@ -48,6 +51,9 @@ func run(arg1, arg2, arg3 string) error {
 			showHelp()
 			return errors.New("make requires a subcommand")
 		}
+		if err := bootImperator(); err != nil {
+			return err
+		}
 		if err := makeCommand(arg2, arg3); err != nil {
 			return errors.New(fmt.Sprintf("could not execute make with error: %s", err))
 		}
@@ -55,20 +61,21 @@ func run(arg1, arg2, arg3 string) error {
 	case "new":
 		if arg2 == "" {
 			showHelp()
-			return errors.New("new requires an application name")
+			return errors.New("new requires an application type")
 		}
 		if arg3 == "" {
 			showHelp()
-			return errors.New("new requires an application type")
+			return errors.New("new requires an application name in form \"App Name\"")
 		}
 		if err := newApp(arg2, arg3); err != nil {
 			return errors.New(fmt.Sprintf("could not create new app with error: %s", err))
 		}
-
+		if err := bootImperator(); err != nil {
+			return err
+		}
 	default:
 		showHelp()
 	}
-
 	return nil
 }
 

@@ -45,7 +45,16 @@ func showHelp() {
     Available commands:
         help                   - show the help command
         version                - show the imperator version
-        new <appname> <type>   - creates a new imperator project application
+        new <type> <App Name>  - creates a new imperator project application and make the app 
+                                 using the format "Example Techblog"
+                                 types available:
+                                   experimental - development version for developing imperator cli
+                                   landing      - simple home with base jet templates and handlers
+                                   blog         - creates a blog with a backend to control frontend 
+                                                  content
+                                   portal       - like a blog but with more admin controls not related
+                                                  to specifically write articles
+                                   shop         - not implemented yet but maybe one day...
                                - types: blog, portal, landing
         make                   - create scaffolds in your project with these sub commands:
             auth               - integrates authentication into the current application
