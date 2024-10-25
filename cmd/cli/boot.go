@@ -58,7 +58,10 @@ func showHelp() {
                                - types: blog, portal, landing
         make                   - create scaffolds in your project with these sub commands:
             auth               - integrates authentication into the current application
-            session            - integrates the session type into the current application
+            roles <role,...>   - integrate roles into you authentiction (depends on make auth) with
+                                 middleware, database migrations, handlers, templates and out puts
+                                 an example route
+            session            - integrates the session type into the current application 
                                  session types: cookie, postgres, mysql, redis
             migration <name>   - creates new up and down migration templates
             mail <name>        - creates new mail templates for html and plain text mail
